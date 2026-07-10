@@ -2,7 +2,8 @@ import dataclasses
 import inspect
 import typing
 
-from celery import Celery, current_app, signals
+from celery import Celery, Task, current_app, signals
+from celery.utils.functional import head_from_fun
 from modern_di import Container, Scope, providers
 
 
@@ -84,3 +85,12 @@ def inject(func: typing.Callable[..., T]) -> typing.Callable[..., T]:
     wrapper.__signature__ = signature.replace(parameters=visible_params)  # ty: ignore[unresolved-attribute]
     wrapper.__modern_di_injected__ = True  # ty: ignore[unresolved-attribute]
     return wrapper
+
+
+class DITask(Task):
+    def __init__(self) -> None:
+        super().__init__()
+        if not getattr(self.run, "__modern_di_injected__", False):
+            injected = inject(self.run)
+            self.run = injected  # ty: ignore[invalid-assignment]
+            self.__header__ = head_from_fun(injected)
