@@ -1,7 +1,9 @@
-from modern_di_celery.main import fetch_di_container, setup_di
+from modern_di_celery.main import FromDI, fetch_di_container, inject, setup_di
 
 
 __all__ = [
+    "FromDI",
     "fetch_di_container",
+    "inject",
     "setup_di",
 ]
