@@ -27,6 +27,19 @@ def test_inject_resolves_app_and_request(app: Celery) -> None:
     assert sample.delay(7).get() == {"x": 7, "app_ok": True, "request_ok": True, "distinct": True}
 
 
+def test_inject_resolves_with_di_param_declared_first(app: Celery) -> None:
+    @app.task
+    @inject
+    def sample(
+        app_instance: typing.Annotated[SimpleCreator, FromDI(SimpleCreator)],
+        x: int,
+    ) -> dict[str, typing.Any]:
+        return {"x": x, "dep1": app_instance.dep1}
+
+    # caller passes only the real positional arg; the leading FromDI param must not collide
+    assert sample.delay(7).get() == {"x": 7, "dep1": "original"}
+
+
 def test_inject_is_noop_without_fromdi(app: Celery) -> None:
     @app.task
     @inject

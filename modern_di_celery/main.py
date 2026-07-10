@@ -68,12 +68,15 @@ def inject(func: typing.Callable[..., T]) -> typing.Callable[..., T]:
 
     signature = inspect.signature(func)
     visible_params = [p for name, p in signature.parameters.items() if name not in di_params]
+    visible_signature = signature.replace(parameters=visible_params)
 
     def wrapper(*args: typing.Any, **kwargs: typing.Any) -> T:  # noqa: ANN401
         container = fetch_di_container(typing.cast(Celery, current_app)).build_child_container(scope=Scope.REQUEST)
         try:
             resolved = {name: container.resolve_dependency(marker.dependency) for name, marker in di_params.items()}
-            return func(*args, **kwargs, **resolved)
+            bound = visible_signature.bind(*args, **kwargs)
+            bound.apply_defaults()
+            return func(**bound.arguments, **resolved)
         finally:
             container.close_sync()
 
@@ -82,7 +85,7 @@ def inject(func: typing.Callable[..., T]) -> typing.Callable[..., T]:
     wrapper.__qualname__ = func.__qualname__  # ty: ignore[unresolved-attribute]
     wrapper.__doc__ = func.__doc__
     wrapper.__module__ = func.__module__
-    wrapper.__signature__ = signature.replace(parameters=visible_params)  # ty: ignore[unresolved-attribute]
+    wrapper.__signature__ = visible_signature  # ty: ignore[unresolved-attribute]
     wrapper.__modern_di_injected__ = True  # ty: ignore[unresolved-attribute]
     return wrapper
 
