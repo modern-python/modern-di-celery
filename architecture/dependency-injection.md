@@ -88,6 +88,17 @@ opt into injection by annotating them
    Celery's own argument binding reads the rewritten signature and only
    expects the caller's real arguments, never the DI ones.
 
+Resolution binds the caller's arguments to the visible signature *by name*
+(`bound.arguments`), which is what makes injection parameter-order-insensitive.
+That by-name call cannot faithfully forward `*args`/`**kwargs`: `Signature.bind`
+stores their values under the literal names `"args"`/`"kwargs"`, so
+`func(**bound.arguments, ...)` would misroute a variadic payload into a keyword
+argument. Rather than silently corrupt arguments, `inject` **rejects at
+decoration time** (raises `TypeError`) any task that declares a `VAR_POSITIONAL`
+or `VAR_KEYWORD` parameter *alongside* a `FromDI` parameter. A task with no
+`FromDI` parameter is returned unchanged (step 2) and may use `*args`/`**kwargs`
+freely.
+
 ## DITask
 
 `DITask(Task)` is the auto-inject path, used via `task_cls=DITask` on the
