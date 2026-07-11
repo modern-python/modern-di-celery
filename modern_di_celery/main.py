@@ -67,6 +67,14 @@ def inject(func: typing.Callable[..., T]) -> typing.Callable[..., T]:
         return func
 
     signature = inspect.signature(func)
+    for name, param in signature.parameters.items():
+        if param.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
+            func_name = getattr(func, "__qualname__", repr(func))
+            msg = (
+                f"@inject task {func_name!r} declares *args/**kwargs (parameter {name!r}), "
+                "which is unsupported; use explicit named parameters instead of *args/**kwargs with @inject."
+            )
+            raise TypeError(msg)
     visible_params = [p for name, p in signature.parameters.items() if name not in di_params]
     visible_signature = signature.replace(parameters=visible_params)
 

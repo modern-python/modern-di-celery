@@ -75,3 +75,25 @@ def test_child_closed_on_task_error() -> None:
     with pytest.raises(ValueError, match="boom"):
         sample.delay().get()
     assert teardowns == ["closed"]  # per-task child closed (finalizer ran) on the error path
+
+
+def test_inject_rejects_var_positional_with_fromdi() -> None:
+    def bad_task(
+        _svc: typing.Annotated[SimpleCreator, FromDI(SimpleCreator)],
+        *args: int,
+    ) -> tuple[int, ...]:
+        return args  # pragma: no cover
+
+    with pytest.raises(TypeError):
+        inject(bad_task)
+
+
+def test_inject_rejects_var_keyword_with_fromdi() -> None:
+    def bad_task(
+        _svc: typing.Annotated[SimpleCreator, FromDI(SimpleCreator)],
+        **kwargs: int,
+    ) -> dict[str, int]:
+        return kwargs  # pragma: no cover
+
+    with pytest.raises(TypeError):
+        inject(bad_task)
