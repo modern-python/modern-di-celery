@@ -22,7 +22,7 @@ version = "0"
 
 [project.urls]
 Homepage = "https://modern-di.modern-python.org"
-Documentation = "https://modern-di.modern-python.org"
+Documentation = "https://modern-di.modern-python.org/integrations/celery/"
 Repository = "https://github.com/modern-python/modern-di-celery"
 Issues = "https://github.com/modern-python/modern-di-celery/issues"
 Changelog = "https://github.com/modern-python/modern-di-celery/releases"
