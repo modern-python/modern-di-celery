@@ -61,27 +61,28 @@ process as a whole.
 
 ## Resolution
 
-`FromDI(dependency)` returns an inert marker (`_FromDI`, a frozen dataclass
-wrapping a provider or a bare type) — it does nothing on its own. Parameters
-opt into injection by annotating them
-`typing.Annotated[SomeType, FromDI(dependency)]`.
+`FromDI` is `modern_di.integrations.from_di` — its marker factory. Calling
+`FromDI(dependency)` returns an inert `Marker(dependency)` wrapping a
+provider or a bare type; it does nothing on its own. Parameters opt into
+injection by annotating them `typing.Annotated[SomeType, FromDI(dependency)]`.
 
 `inject` rewrites a task function's signature at decoration time:
 
-1. `_parse_inject_params` scans the resolved type hints
+1. `integrations.parse_markers(func)` scans the resolved type hints
    (`typing.get_type_hints(func, include_extras=True)`) for `Annotated`
-   parameters carrying a `_FromDI` marker.
-2. If none are found, the function is returned unchanged — only marked
-   `func.__modern_di_injected__ = True` — and `inject` short-circuits without
+   parameters carrying a `Marker`.
+2. If none are found, the function is returned unchanged — only marked via
+   `integrations.mark_injected(func)` — and `inject` short-circuits without
    building a wrapper at all.
 3. Otherwise `inject` builds a `wrapper` whose visible signature drops every
    DI parameter (`visible_params`, computed by excluding the DI parameter
    names from the original `inspect.signature(func)`). At call time the
-   wrapper resolves each DI parameter via
-   `container.resolve_dependency(marker.dependency)` — which dispatches to
-   `resolve_provider` when `dependency` is a provider instance and to
-   `resolve` (by type) otherwise — and calls the original function with the
-   DI arguments merged into the caller's `args`/`kwargs`.
+   wrapper resolves every DI parameter via
+   `integrations.resolve_markers(container, di_params)` — which calls each
+   `Marker.resolve(container)`, itself `container.resolve_dependency(...)`,
+   dispatching to `resolve_provider` when `dependency` is a provider
+   instance and to `resolve` (by type) otherwise — and calls the original
+   function with the DI arguments merged into the caller's `args`/`kwargs`.
 4. The wrapper deliberately does **not** use `functools.wraps`. Instead it
    copies just `__name__`, `__qualname__`, `__doc__`, and `__module__` by
    hand, and sets `__signature__` explicitly to the stripped signature — so
@@ -103,14 +104,14 @@ freely.
 
 `DITask(Task)` is the auto-inject path, used via `task_cls=DITask` on the
 `Celery` app or `base=DITask` on an individual task. On `__init__` it checks
-whether `self.run` is already marked `__modern_di_injected__`; if not, it
+`integrations.is_injected(self.run)`; if not already marked, it
 wraps `self.run` with `inject`, reassigns the wrapped callable back onto
 `self.run`, and resets `self.__header__ = head_from_fun(injected)`. Celery
 precomputes `__header__` — the arg-binding header used when a task is
 called — from the task function's original signature, so it has to be
 recomputed from the rewritten signature after wrapping. Checking
-`__modern_di_injected__` first means a task explicitly decorated with
-`@inject` and also based on `DITask` is not wrapped twice.
+`is_injected` first means a task explicitly decorated with `@inject` and
+also based on `DITask` is not wrapped twice.
 
 ## Synchronous only
 
