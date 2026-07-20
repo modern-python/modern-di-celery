@@ -64,7 +64,8 @@ def test_child_closed_on_task_error() -> None:
     app = Celery("boom", broker="memory://", backend="cache+memory://")
     app.conf.task_always_eager = True
     app.conf.task_store_eager_result = True
-    setup_di(app, Container(groups=[Boom], validate=True))
+    boom_container = setup_di(app, Container(groups=[Boom], validate=True))
+    boom_container.open()
 
     @app.task
     @inject
