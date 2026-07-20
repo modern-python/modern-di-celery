@@ -48,16 +48,18 @@ process as a whole.
 `inject`'s wrapper runs once per task invocation. On each call it:
 
 1. Builds one `Scope.REQUEST` child container via
-   `fetch_di_container(current_app).build_child_container(scope=Scope.REQUEST)`.
-   Unlike a web-framework request, a Celery task carries no framework request
-   object to seed as context, so there is no equivalent of a "connection
-   provider" here — the child container is built with no context.
+   `fetch_di_container(current_app).build_child_container(scope=Scope.REQUEST)`,
+   entered with a sync `with` — modern-di 3.x's mandatory-open lifecycle means
+   a freshly built child is not usable until opened, and `Container.__enter__`
+   is what opens it. Unlike a web-framework request, a Celery task carries no
+   framework request object to seed as context, so there is no equivalent of a
+   "connection provider" here — the child container is built with no context.
 2. Resolves every `FromDI` parameter against that child container, then calls
    the original function with the caller's `args`/`kwargs` plus the resolved
    dependencies.
-3. Closes the child container with `close_sync()` in a `finally` block, so it
-   closes whether the task returns normally or raises — including the task
-   error path.
+3. Closes the child container via `Container.__exit__` (which calls
+   `close_sync()`) when the `with` block exits, so it closes whether the task
+   returns normally or raises — including the task error path.
 
 ## Resolution
 

@@ -57,14 +57,13 @@ def inject(func: typing.Callable[..., T]) -> typing.Callable[..., T]:
     visible_signature = signature.replace(parameters=visible_params)
 
     def wrapper(*args: typing.Any, **kwargs: typing.Any) -> T:  # noqa: ANN401
-        container = fetch_di_container(typing.cast(Celery, current_app)).build_child_container(scope=Scope.REQUEST)
-        try:
+        with fetch_di_container(typing.cast(Celery, current_app)).build_child_container(
+            scope=Scope.REQUEST
+        ) as container:
             resolved = integrations.resolve_markers(container, di_params)
             bound = visible_signature.bind(*args, **kwargs)
             bound.apply_defaults()
             return func(**bound.arguments, **resolved)
-        finally:
-            container.close_sync()
 
     # NOT functools.wraps — keep Celery's arg-binding reading the stripped signature.
     wrapper.__name__ = func.__name__  # ty: ignore[unresolved-attribute]
