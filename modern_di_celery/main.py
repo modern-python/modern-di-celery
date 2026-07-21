@@ -23,8 +23,21 @@ def setup_di(app: Celery, container: Container) -> Container:
 
     # weak=False is required: Celery signals default to weak refs, which would
     # garbage-collect these handlers before a worker process ever fires them.
+    #
+    # worker_process_init/worker_process_shutdown fire only under the prefork and
+    # solo pools (once per forked child for prefork), giving each forked process
+    # its own open/close so cached resources and finalizers are fork-safe.
+    # worker_init/worker_shutdown fire once in the main worker process for ALL
+    # pools, which is the only signal the gevent/eventlet/threads pools send —
+    # those pools never fork and never emit worker_process_init, so without this
+    # the root container would stay closed and every @inject task would raise
+    # ContainerClosedError. The overlap between the two pairs is harmless:
+    # Container.open() is a no-op when already open, and close_sync() is a no-op
+    # when nothing was cached.
     signals.worker_process_init.connect(_open_container, weak=False)
     signals.worker_process_shutdown.connect(_close_container, weak=False)
+    signals.worker_init.connect(_open_container, weak=False)
+    signals.worker_shutdown.connect(_close_container, weak=False)
     return container
 
 
