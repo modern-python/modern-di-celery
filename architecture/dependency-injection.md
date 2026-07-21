@@ -13,35 +13,50 @@ is `setup_di`, `fetch_di_container`, `FromDI`, `inject`, and `DITask`.
    (`"modern_di_container"`), a named constant — writer (`setup_di`) and
    reader (`fetch_di_container`) stay in provable agreement instead of
    relying on a bare string literal.
-2. Connects two named closures to Celery's worker-process signals:
-   `signals.worker_process_init.connect(_open_container, weak=False)` calls
-   `container.open()`, and
-   `signals.worker_process_shutdown.connect(_close_container, weak=False)`
-   calls `container.close_sync()`.
+2. Connects two named closures to **two pairs** of Celery worker signals:
+   `worker_process_init`/`worker_process_shutdown` and
+   `worker_init`/`worker_shutdown`. Both pairs call the same closures —
+   `_open_container` (`container.open()`) and `_close_container`
+   (`container.close_sync()`).
 
-`weak=False` is required on both connections. Celery's signal dispatcher
+The two pairs cover different pool families. `worker_process_init`/
+`worker_process_shutdown` fire only under the **prefork** and **solo** pools
+(once per forked child for prefork), giving each forked process its own
+open/close so cached resources and finalizers are fork-safe. `worker_init`/
+`worker_shutdown` fire once in the main worker process for **all** pools —
+this is the *only* pair the **gevent**, **eventlet**, and **threads** pools
+send, since those pools run tasks in the main process and never fork. Without
+`worker_init`/`worker_shutdown`, the root container would never open under
+those pools and every `@inject` task would raise `ContainerClosedError`. The
+overlap between the pairs under prefork/solo is harmless: `Container.open()`
+is a no-op when already open, and `close_sync()` is a no-op when nothing was
+cached.
+
+`weak=False` is required on all four connections. Celery's signal dispatcher
 holds receivers by weak reference by default; `_open_container` and
 `_close_container` are local closures with no other strong reference keeping
 them alive, so a weak-ref connection would let the garbage collector reclaim
-them before a forked worker process ever fires the signal — the handlers
-would silently never run. `weak=False` makes the dispatcher hold a strong
-reference for the life of the connection instead.
+them before a worker process ever fires the signal — the handlers would
+silently never run. `weak=False` makes the dispatcher hold a strong reference
+for the life of each connection instead.
 
 `fetch_di_container(app)` reads the same key back off `app.conf` and returns
 the root container.
 
 ## Lifecycle
 
-Reopening on `worker_process_init` is idempotent: a fresh `Container` is
-already open on construction, and `Container.open` is a no-op when already
-open, so firing `worker_process_init` again — a restart, a test re-entry —
-reopens a container that was closed on a previous `worker_process_shutdown`
+Reopening is idempotent: a fresh `Container` is already open on construction,
+and `Container.open` is a no-op when already open, so firing an open signal
+again — a restart, a test re-entry, or the second signal of an overlapping
+pair — reopens a container that was closed on a previous shutdown signal
 instead of raising an error. This matters because Celery's prefork pool forks
 one worker process per configured concurrency slot, and each forked process
 fires its own `worker_process_init`/`worker_process_shutdown` pair
 independently on the container object it inherited from the fork — the
 open/close cycle is scoped per forked worker process, not to the parent
-process as a whole.
+process as a whole. Under gevent/eventlet/threads there is no fork at all;
+`worker_init`/`worker_shutdown` scope the same open/close cycle to the single
+main worker process instead.
 
 ## Per-task scope
 
