@@ -47,7 +47,7 @@ class Settings:
 
 
 class Greeter:
-    def __init__(self, settings: Settings) -> None:   # auto-injected by type
+    def __init__(self, settings: Settings) -> None:  # auto-injected by type
         self._settings = settings
 
     def greet(self, name: str) -> str:
@@ -67,7 +67,7 @@ setup_di(app, Container(groups=[AppGroup], validate=True))
 @inject
 def greet(
     name: str,
-    greeter: typing.Annotated[Greeter, FromDI(Greeter)],   # resolve by type
+    greeter: typing.Annotated[Greeter, FromDI(Greeter)],  # resolve by type
 ) -> str:
     return greeter.greet(name)
 ```
