@@ -21,6 +21,8 @@
 
 Full guide: [Celery integration docs](https://modern-di.modern-python.org/integrations/celery/)
 
+Usage example: [examples/](./examples)
+
 ## Installation
 
 ```bash
