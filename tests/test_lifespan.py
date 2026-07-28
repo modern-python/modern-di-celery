@@ -14,7 +14,7 @@ def test_fetch_returns_the_same_container(app: Celery) -> None:
 
 def test_setup_di_returns_the_container() -> None:
     app = Celery("t", broker="memory://", backend="cache+memory://")
-    container = Container(groups=[Dependencies], validate=True)
+    container = Container(groups=[Dependencies])
     assert modern_di_celery.setup_di(app, container) is container
 
 
@@ -43,7 +43,10 @@ def test_worker_init_opens_container_for_non_forking_pools() -> None:
     non_forking_app = Celery("non-forking", broker="memory://", backend="cache+memory://")
     non_forking_app.conf.task_always_eager = True
     non_forking_app.conf.task_store_eager_result = True
-    container = modern_di_celery.setup_di(non_forking_app, Container(groups=[Dependencies], validate=True))
+    container = modern_di_celery.setup_di(non_forking_app, Container(groups=[Dependencies]))
+    # modern-di 3.1 builds containers open, so close it first — otherwise "the signal opens it"
+    # is not observable and the assertion below would pass without the signal doing anything.
+    container.close_sync()
     assert container.closed is True
 
     signals.worker_init.send(sender=None)  # no worker_process_init: simulates gevent/eventlet/threads
