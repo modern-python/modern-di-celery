@@ -60,7 +60,9 @@ class AppGroup(Group):
 
 
 app = Celery("myapp", broker="redis://localhost")
-setup_di(app, Container(groups=[AppGroup], validate=True))
+container = Container(groups=[AppGroup])
+setup_di(app, container)
+container.validate()  # optional fail-fast; must come after setup_di registers its providers
 
 
 @app.task
