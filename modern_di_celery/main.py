@@ -78,7 +78,7 @@ def inject(func: typing.Callable[..., T]) -> typing.Callable[..., T]:
             bound.apply_defaults()
             return func(**bound.arguments, **resolved)
 
-    # NOT functools.wraps — keep Celery's arg-binding reading the stripped signature.
+    # NOT functools.wraps — keep Celery's arg-binding reading the visible signature.
     wrapper.__name__ = func.__name__  # ty: ignore[unresolved-attribute]
     wrapper.__qualname__ = func.__qualname__  # ty: ignore[unresolved-attribute]
     wrapper.__doc__ = func.__doc__
