@@ -1,3 +1,4 @@
+import inspect
 import typing
 
 import pytest
@@ -38,6 +39,31 @@ def test_inject_resolves_with_di_param_declared_first(app: Celery) -> None:
 
     # caller passes only the real positional arg; the leading FromDI param must not collide
     assert sample.delay(7).get() == {"x": 7, "dep1": "original"}
+
+
+def test_a_fromdi_parameter_is_absent_from_the_signature_celery_binds_against(app: Celery) -> None:
+    """INVARIANT: the callable ``inject`` returns advertises only the task's real parameters.
+
+    Broken by dropping the explicit ``__signature__`` assignment, or by reaching for
+    ``functools.wraps`` instead of copying the four dunders by hand: ``inspect.signature`` then
+    follows ``__wrapped__`` back to the undecorated function and every ``FromDI`` parameter
+    reappears in the task's public API, which callers must then supply. The wrapper accepts
+    ``*args``/``**kwargs`` and re-binds them itself, so a correct call still runs under the
+    violation and every other test here keeps passing. What moves is where a *wrong* call is
+    caught: Celery checks arity against the task header in the caller's process, so with the
+    rewrite a bad call raises at ``.delay()``, and without it the call is accepted, serialized and
+    dispatched, and dies on a worker.
+    """
+
+    @app.task
+    @inject
+    def sample(x: int, app_instance: typing.Annotated[SimpleCreator, FromDI(SimpleCreator)]) -> str:
+        return f"{x}:{app_instance.dep1}"
+
+    assert list(inspect.signature(sample.run).parameters) == ["x"]
+    assert sample.delay(7).get() == "7:original"
+    with pytest.raises(TypeError):
+        sample.delay(7, "surplus")
 
 
 def test_inject_is_noop_without_fromdi(app: Celery) -> None:
