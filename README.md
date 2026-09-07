@@ -21,7 +21,7 @@
 
 Full guide: [Celery integration docs](https://modern-di.modern-python.org/integrations/celery/)
 
-Usage example: [examples/](./examples)
+Usage example: [examples/](https://github.com/modern-python/modern-di-celery/tree/main/examples)
 
 ## Installation
 
@@ -88,7 +88,7 @@ The `worker_process_init`/`worker_process_shutdown` signals fire only when a rea
 
 ## 📦 [PyPI](https://pypi.org/project/modern-di-celery)
 
-## 📝 [License](LICENSE)
+## 📝 [License](https://github.com/modern-python/modern-di-celery/blob/main/LICENSE)
 
 ## Part of `modern-python`
 
