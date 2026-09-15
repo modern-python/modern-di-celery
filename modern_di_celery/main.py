@@ -42,7 +42,14 @@ def setup_di(app: Celery, container: Container) -> Container:
 
 
 def fetch_di_container(app: Celery) -> Container:
-    return typing.cast(Container, app.conf[_ROOT_CONTAINER_KEY])
+    try:
+        return typing.cast(Container, app.conf[_ROOT_CONTAINER_KEY])
+    except KeyError:
+        msg = (
+            "No modern-di container found on the app. "
+            "Call setup_di(app, container) before using @inject or fetch_di_container."
+        )
+        raise RuntimeError(msg) from None
 
 
 T = typing.TypeVar("T")
