@@ -82,9 +82,9 @@ The `worker_process_init`/`worker_process_shutdown` signals fire only when a rea
 |---|---|
 | `setup_di(app, container)` | Stores the root container (`Scope.APP`) on `app.conf` and opens/closes it on `worker_process_init`/`worker_process_shutdown`. Returns the container |
 | `FromDI(dependency)` | Inert marker for `Annotated[T, FromDI(...)]` in task signatures; accepts a provider instance or a type |
-| `inject(task)` | Decorator that builds a `Scope.REQUEST` child per call, resolves the `FromDI`-annotated parameters, and closes the child with `close_sync()` afterwards |
+| `inject(task)` | Decorator that builds a `Scope.REQUEST` child per call, resolves the `FromDI`-annotated parameters, and closes the child with `close_sync()` afterwards. Raises `RuntimeError` naming `setup_di` when a task reaches it without `setup_di` called |
 | `DITask` | `Task` subclass that applies `@inject` to a task's `run` automatically; pass `task_cls=DITask` to `Celery(...)` or `base=DITask` to `@app.task(...)` |
-| `fetch_di_container(app)` | Returns the root container (`Scope.APP`) registered with the Celery app |
+| `fetch_di_container(app)` | Returns the root container (`Scope.APP`) registered with the Celery app. Raises `RuntimeError` naming `setup_di` when called on an app without `setup_di` called |
 
 ## 📦 [PyPI](https://pypi.org/project/modern-di-celery)
 

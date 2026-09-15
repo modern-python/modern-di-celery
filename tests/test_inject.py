@@ -124,3 +124,17 @@ def test_inject_rejects_var_keyword_with_fromdi() -> None:
 
     with pytest.raises(TypeError):
         inject(bad_task)
+
+
+def test_inject_without_setup_di_raises_a_clear_runtime_error() -> None:
+    app = Celery("no-setup", broker="memory://", backend="cache+memory://")
+    app.conf.task_always_eager = True
+    app.conf.task_store_eager_result = True
+
+    @app.task
+    @inject
+    def sample(_svc: typing.Annotated[SimpleCreator, FromDI(SimpleCreator)]) -> None:
+        pass  # pragma: no cover
+
+    with pytest.raises(RuntimeError, match=r"setup_di\(app, container\)"):
+        sample.delay().get()
