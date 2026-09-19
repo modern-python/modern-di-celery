@@ -18,7 +18,7 @@ Single-context repo:
 ├── CONTEXT.md
 ├── docs/adr/
 │   ├── 0001-no-connection-provider-for-a-task.md
-│   └── 0002-no-functools-wraps-on-the-inject-wrapper.md
+│   └── 0002-reject-variadics-alongside-fromdi.md
 └── modern_di_celery/
 ```
 
