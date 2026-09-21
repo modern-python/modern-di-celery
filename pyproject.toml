@@ -18,7 +18,12 @@ classifiers = [
     "Typing :: Typed",
     "Topic :: Software Development :: Libraries",
 ]
-dependencies = ["celery>=5,<6", "modern-di>=3,<4"]
+dependencies = [
+    # celery caps billiard below 4 until 5.3, and billiard 3 cannot format a traceback on 3.11+.
+    "celery>=5,<6; python_version < '3.11'",
+    "celery>=5.3,<6; python_version >= '3.11'",
+    "modern-di>=3,<4",
+]
 version = "0"
 
 [project.urls]
@@ -29,9 +34,10 @@ Issues = "https://github.com/modern-python/modern-di-celery/issues"
 Changelog = "https://github.com/modern-python/modern-di-celery/releases"
 
 [dependency-groups]
+# Floored so `uv sync --resolution lowest-direct` resolves a usable harness, not each name's first release.
 dev = [
-    "pytest",
-    "pytest-cov",
+    "pytest>=8",
+    "pytest-cov>=5",
 ]
 lint = [
     "ty",
