@@ -109,7 +109,7 @@ def test_inject_rejects_var_positional_with_fromdi() -> None:
         _svc: typing.Annotated[SimpleCreator, FromDI(SimpleCreator)],
         *args: int,
     ) -> tuple[int, ...]:
-        return args  # pragma: no cover
+        return args  # pragma: no cover - never runs; inject rejects the signature first
 
     with pytest.raises(TypeError):
         inject(bad_task)
@@ -120,7 +120,7 @@ def test_inject_rejects_var_keyword_with_fromdi() -> None:
         _svc: typing.Annotated[SimpleCreator, FromDI(SimpleCreator)],
         **kwargs: int,
     ) -> dict[str, int]:
-        return kwargs  # pragma: no cover
+        return kwargs  # pragma: no cover - never runs; inject rejects the signature first
 
     with pytest.raises(TypeError):
         inject(bad_task)
@@ -134,7 +134,7 @@ def test_inject_without_setup_di_raises_a_clear_runtime_error() -> None:
     @app.task
     @inject
     def sample(_svc: typing.Annotated[SimpleCreator, FromDI(SimpleCreator)]) -> None:
-        pass  # pragma: no cover
+        pass  # pragma: no cover - never runs; inject raises before the call without setup_di
 
     with pytest.raises(RuntimeError, match=r"setup_di\(app, container\)"):
         sample.delay().get()
