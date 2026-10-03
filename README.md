@@ -31,7 +31,7 @@ uv add modern-di-celery      # or: pip install modern-di-celery
 
 ## Usage
 
-`setup_di` stores the container on `app.conf` and registers `worker_process_init`/`worker_process_shutdown` handlers that open/close it once per worker process. `@inject` builds a `Scope.REQUEST` child container per task call and resolves the `FromDI`-marked parameters from it; alternatively set `task_cls=DITask` to inject every task without a per-task decorator.
+`setup_di` stores the container on `app.conf` and registers handlers that open and close it on `worker_process_init`/`worker_process_shutdown` (once per forked process under the prefork and solo pools) and on `worker_init`/`worker_shutdown` (once in the main worker process, the only signals the threads, gevent, and eventlet pools send). `@inject` builds a `Scope.REQUEST` child container per task call and resolves the `FromDI`-marked parameters from it; alternatively set `task_cls=DITask` to inject every task without a per-task decorator.
 
 ```python
 import typing
@@ -74,15 +74,15 @@ def greet(
     return greeter.greet(name)
 ```
 
-The `worker_process_init`/`worker_process_shutdown` signals fire only when a real `celery worker` process starts and stops, so a script or test that runs tasks eagerly (`task_always_eager = True`) must drive the container lifecycle itself — send those signals or open/close the container directly. Celery tasks are sync, so REQUEST-scoped finalizers run via `close_sync()`; there is no framework request/message object, so no context provider is registered.
+These worker signals fire only when a real `celery worker` starts and stops, so a script or test that runs tasks eagerly (`task_always_eager = True`) must drive the container lifecycle itself, either by sending those signals or by opening and closing the container directly. Celery tasks are sync, so REQUEST-scoped finalizers run via `close_sync()`; there is no framework request/message object, so no context provider is registered.
 
 ## API
 
 | Symbol | Description |
 |---|---|
-| `setup_di(app, container)` | Stores the root container (`Scope.APP`) on `app.conf` and opens/closes it on `worker_process_init`/`worker_process_shutdown`. Returns the container |
+| `setup_di(app, container)` | Stores the root container (`Scope.APP`) on `app.conf` and opens/closes it on `worker_process_init`/`worker_process_shutdown` and `worker_init`/`worker_shutdown`. Returns the container |
 | `FromDI(dependency)` | Inert marker for `Annotated[T, FromDI(...)]` in task signatures; accepts a provider instance or a type |
-| `inject(task)` | Decorator that builds a `Scope.REQUEST` child per call, resolves the `FromDI`-annotated parameters, and closes the child with `close_sync()` afterwards. Raises `RuntimeError` naming `setup_di` when a task reaches it without `setup_di` called |
+| `inject(task)` | Decorator that builds a `Scope.REQUEST` child per call, resolves the `FromDI`-annotated parameters, and closes the child with `close_sync()` afterwards. Raises `TypeError` at decoration if the task also declares `*args`/`**kwargs`. Raises `RuntimeError` naming `setup_di` when a task reaches it without `setup_di` called |
 | `DITask` | `Task` subclass that applies `@inject` to a task's `run` automatically; pass `task_cls=DITask` to `Celery(...)` or `base=DITask` to `@app.task(...)` |
 | `fetch_di_container(app)` | Returns the root container (`Scope.APP`) registered with the Celery app. Raises `RuntimeError` naming `setup_di` when called on an app without `setup_di` called |
 
@@ -92,7 +92,7 @@ The `worker_process_init`/`worker_process_shutdown` signals fire only when a rea
 
 ## Part of `modern-python`
 
-Built on [`modern-di`](https://github.com/modern-python/modern-di), a dependency-injection framework with IoC container and scopes.
+Built on [`modern-di`](https://github.com/modern-python/modern-di), a dependency-injection framework with an IoC container and scopes.
 
 Browse the full list of templates and libraries in
-[`modern-python`](https://github.com/modern-python) — see the org profile for the categorized index.
+[`modern-python`](https://github.com/modern-python); the org profile has the categorized index.
