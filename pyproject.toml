@@ -20,7 +20,7 @@ classifiers = [
 dependencies = [
     # celery caps billiard below 4 until 5.3, and billiard 3 cannot format a traceback on 3.11+.
     "celery>=5.3,<6",
-    "modern-di>=3,<4",
+    "modern-di>=3,<5",
 ]
 version = "0"
 
