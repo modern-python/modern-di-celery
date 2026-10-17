@@ -63,3 +63,17 @@ def test_an_app_with_a_container_keeps_it_when_a_later_handler_fires() -> None:
     signals.worker_process_init.send(sender=None)
 
     assert fetch_di_container(current) is current_container
+
+
+def test_a_spawn_child_binds_its_container_without_opening_it_when_lifespan_is_unmanaged() -> None:
+    payload = pickle.dumps(_make_app("spawn-unmanaged", set_as_current=False))
+    unpickled = pickle.loads(payload)  # noqa: S301
+    recreated = _make_app("spawn-unmanaged", set_as_current=False)
+    container = setup_di(recreated, Container(groups=[Dependencies]), manage_lifespan=False)
+    container.close_sync()
+    unpickled.set_current()
+
+    signals.worker_process_init.send(sender=None)
+
+    assert fetch_di_container(typing.cast(Celery, current_app)) is container
+    assert container.closed is True

@@ -80,11 +80,29 @@ These worker signals fire only when a real `celery worker` starts and stops, so 
 
 Celery runs its prefork pool on billiard, its own copy of multiprocessing, which starts children with the fork method by default on macOS and Linux. With spawn (Windows, or `billiard.set_start_method("spawn", force=True)`), each child unpickles the app and re-imports your task modules, so `setup_di` runs again in the child. The `worker_process_init` handler then registers the child's container for the app the child runs. It matches apps by `main` name, so give each app in a process its own name. Under spawn, Celery's prefork pool also needs `FORKED_BY_MULTIPROCESSING=1` in the environment. Without it tasks fail inside Celery's tracer, with or without modern-di.
 
+### Sharing a container
+
+To share one container between the Celery app and other code in the same process, such as another app built on modern-di, pass `manage_lifespan=False` and open and close the root container yourself. The worker signals then leave it alone, and each task call still gets its own child container:
+
+```python
+from modern_di_celery import setup_di
+
+
+setup_di(app, container, manage_lifespan=False)
+
+
+async def main() -> None:
+    async with container:
+        ...  # run the apps that share the container
+```
+
+Under the prefork pool each forked child inherits the open container. With `manage_lifespan=False` nothing closes it in the child, so close it yourself if its `Scope.APP` finalizers must run there, for example from your own `worker_process_shutdown` handler that calls `container.close_sync()`.
+
 ## API
 
 | Symbol | Description |
 |---|---|
-| `setup_di(app, container)` | Registers the root container (`Scope.APP`) for the app, outside `app.conf`, and opens/closes it on `worker_process_init`/`worker_process_shutdown` and `worker_init`/`worker_shutdown`. Returns the container |
+| `setup_di(app, container, *, manage_lifespan=True)` | Registers the root container (`Scope.APP`) for the app, outside `app.conf`, and opens/closes it on `worker_process_init`/`worker_process_shutdown` and `worker_init`/`worker_shutdown`. With `manage_lifespan=False` it never opens or closes the root container, and `@inject` still builds and closes a child container per task call. Returns the container |
 | `FromDI(dependency)` | Inert marker for `Annotated[T, FromDI(...)]` in task signatures; accepts a provider instance or a type |
 | `inject(task)` | Decorator that builds a `Scope.REQUEST` child per call, resolves the `FromDI`-annotated parameters, and closes the child with `close_sync()` afterwards. Raises `TypeError` at decoration if the task also declares `*args`/`**kwargs`. Raises `RuntimeError` naming `setup_di` when a task reaches it without `setup_di` called |
 | `DITask` | `Task` subclass that applies `@inject` to a task's `run` automatically; pass `task_cls=DITask` to `Celery(...)` or `base=DITask` to `@app.task(...)` |
