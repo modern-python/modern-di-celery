@@ -1,11 +1,11 @@
 # AGENTS.md
 
-[`CONTEXT.md`](CONTEXT.md) opens with what this package is and owns the vocabulary — read it before
+[`CONTEXT.md`](CONTEXT.md) opens with what this package is and owns the vocabulary. Read it before
 naming a concept in code, in a test name, or in an issue title.
 
 ## Commands
 
-`just` (task runner) and `uv` (package manager). The [`justfile`](justfile) is the source of truth —
+`just` (task runner) and `uv` (package manager). The [`justfile`](justfile) is the source of truth:
 `just --list`, or read it.
 
 ## Workflow
