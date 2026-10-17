@@ -1,22 +1,34 @@
 import inspect
 import typing
+import weakref
 
 from celery import Celery, Task, current_app, signals
+from celery.local import Proxy
 from celery.utils.functional import head_from_fun
 from modern_di import Container, Scope, integrations
 
 
-# The root container lives on ``app.conf`` under this named key; read back with
-# ``current_app.conf`` inside ``inject``. A named constant keeps writer and
-# reader in provable agreement.
-_ROOT_CONTAINER_KEY = "modern_di_container"
+_ROOT_CONTAINERS: "weakref.WeakKeyDictionary[Celery, Container]" = weakref.WeakKeyDictionary()
+
+
+def _real_app(app: Celery) -> Celery:
+    if isinstance(app, Proxy):
+        return typing.cast(Celery, app._get_current_object())  # noqa: SLF001
+    return app
 
 
 def setup_di(app: Celery, container: Container) -> Container:
-    app.conf[_ROOT_CONTAINER_KEY] = container
+    _ROOT_CONTAINERS[app] = container
+    main = app.main
 
     def _open_container(**_: typing.Any) -> None:  # noqa: ANN401
         container.open()
+
+    def _open_and_bind_container(**_: typing.Any) -> None:  # noqa: ANN401
+        container.open()
+        process_app = _real_app(typing.cast(Celery, current_app))
+        if process_app.main == main:
+            _ROOT_CONTAINERS.setdefault(process_app, container)
 
     def _close_container(**_: typing.Any) -> None:  # noqa: ANN401
         container.close_sync()
@@ -34,7 +46,12 @@ def setup_di(app: Celery, container: Container) -> Container:
     # ContainerClosedError. The overlap between the two pairs is harmless:
     # Container.open() is a no-op when already open, and close_sync() is a no-op
     # when nothing was cached.
-    signals.worker_process_init.connect(_open_container, weak=False)
+    #
+    # A spawn child unpickles the app it is sent and makes that copy current, then
+    # re-imports the task modules, so setup_di runs again on a new app object. The
+    # process-init handler binds its container to that current copy by main name,
+    # unless the copy already has one.
+    signals.worker_process_init.connect(_open_and_bind_container, weak=False)
     signals.worker_process_shutdown.connect(_close_container, weak=False)
     signals.worker_init.connect(_open_container, weak=False)
     signals.worker_shutdown.connect(_close_container, weak=False)
@@ -43,7 +60,7 @@ def setup_di(app: Celery, container: Container) -> Container:
 
 def fetch_di_container(app: Celery) -> Container:
     try:
-        return typing.cast(Container, app.conf[_ROOT_CONTAINER_KEY])
+        return _ROOT_CONTAINERS[_real_app(app)]
     except KeyError:
         msg = (
             "No modern-di container found on the app. "

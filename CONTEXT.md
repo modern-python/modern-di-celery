@@ -1,7 +1,7 @@
 # modern-di-celery
 
-A Celery adapter over [`modern-di`](https://github.com/modern-python/modern-di): it stores a root
-container on the Celery app, opens and closes it on the worker lifecycle signals, and resolves a
+A Celery adapter over [`modern-di`](https://github.com/modern-python/modern-di): it registers a root
+container for the Celery app, opens and closes it on the worker lifecycle signals, and resolves a
 task's marked parameters from a child container built per task invocation.
 
 ## Language
@@ -16,9 +16,9 @@ one. Celery's vocabulary is Celery's — task, worker, broker, beat, and the poo
 [its docs](https://docs.celeryq.dev) say they mean. The three below are this package's own.
 
 **Root container**:
-The `Scope.APP` `Container` handed to `setup_di` and stored on the Celery app's `conf`; the worker
-lifecycle signals open and close it, and every per-task child descends from it. `fetch_di_container`
-returns this one.
+The `Scope.APP` `Container` handed to `setup_di` and registered for the Celery app, outside its
+`conf`; the worker lifecycle signals open and close it, and every per-task child descends from it.
+`fetch_di_container` returns this one.
 _Avoid_: APP container, APP-scope container — both have been used for it, and neither says the thing
 that matters at a call site, which is that this is the container a per-task child is built *from*.
 
