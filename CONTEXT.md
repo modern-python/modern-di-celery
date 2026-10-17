@@ -10,9 +10,9 @@ A term is listed only when there is a synonym to reject, or a meaning subtle eno
 docs must agree on it. General programming vocabulary does not belong here, however heavily this
 package uses it.
 
-The domain terms are `modern-di`'s — `Container`, `Provider`, `Group`, `Scope`, `Resolution`,
+The domain terms are `modern-di`'s: `Container`, `Provider`, `Group`, `Scope`, `Resolution`,
 `Override`. That project's `CONTEXT.md` is the authority for all of them; nothing here redefines
-one. Celery's vocabulary is Celery's — task, worker, broker, beat, and the pool names mean what
+one. Celery's vocabulary is Celery's: task, worker, broker, beat, and the pool names mean what
 [its docs](https://docs.celeryq.dev) say they mean. The three below are this package's own.
 
 **Root container**:
@@ -20,7 +20,7 @@ The `Scope.APP` `Container` handed to `setup_di` and registered for the Celery a
 `conf`; the worker lifecycle signals open and close it unless `setup_di` gets `manage_lifespan=False`,
 which leaves that to the user, and every per-task child descends from it.
 `fetch_di_container` returns this one.
-_Avoid_: APP container, APP-scope container — both have been used for it, and neither says the thing
+_Avoid_: APP container, APP-scope container. Both have been used for it, and neither says the thing
 that matters at a call site, which is that this is the container a per-task child is built *from*.
 
 **Per-task child container**:
