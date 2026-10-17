@@ -1,9 +1,18 @@
+import typing
+
 import pytest
-from celery import Celery
+from celery import Celery, current_app
 from modern_di import Container
 
 from modern_di_celery import setup_di
 from tests.dependencies import Dependencies
+
+
+@pytest.fixture(autouse=True)
+def _restore_current_app() -> typing.Iterator[None]:
+    previous = current_app._get_current_object()  # noqa: SLF001
+    yield
+    previous.set_current()
 
 
 @pytest.fixture

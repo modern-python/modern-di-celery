@@ -64,3 +64,42 @@ def test_worker_init_opens_container_for_non_forking_pools() -> None:
 
     signals.worker_shutdown.send(sender=None)
     assert container.closed is True
+
+
+class _FakeWorker:
+    def __init__(self, app: Celery) -> None:
+        self.app = app
+
+
+def _make_app(main: str) -> Celery:
+    return Celery(main, broker="memory://", backend="cache+memory://", set_as_current=False)
+
+
+def test_worker_signals_act_only_on_the_senders_app() -> None:
+    app_a = _make_app("worker-a")
+    app_b = _make_app("worker-b")
+    container_a = modern_di_celery.setup_di(app_a, Container(groups=[Dependencies]))
+    container_b = modern_di_celery.setup_di(app_b, Container(groups=[Dependencies]))
+    worker_a = _FakeWorker(app_a)
+
+    signals.worker_shutdown.send(sender=worker_a)
+    assert (container_a.closed, container_b.closed) == (True, False)
+
+    container_b.close_sync()
+    signals.worker_init.send(sender=worker_a)
+    assert (container_a.closed, container_b.closed) == (False, True)
+
+
+def test_process_signals_act_only_on_the_current_app() -> None:
+    app_a = _make_app("process-a")
+    app_b = _make_app("process-b")
+    container_a = modern_di_celery.setup_di(app_a, Container(groups=[Dependencies]))
+    container_b = modern_di_celery.setup_di(app_b, Container(groups=[Dependencies]))
+    app_a.set_current()
+
+    signals.worker_process_shutdown.send(sender=None)
+    assert (container_a.closed, container_b.closed) == (True, False)
+
+    container_b.close_sync()
+    signals.worker_process_init.send(sender=None)
+    assert (container_a.closed, container_b.closed) == (False, True)
