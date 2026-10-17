@@ -1,7 +1,6 @@
 import pickle
 import typing
 
-import pytest
 from celery import Celery, current_app, signals
 from modern_di import Container
 
@@ -11,13 +10,6 @@ from tests.dependencies import Dependencies
 
 def _make_app(main: str, set_as_current: bool = True) -> Celery:
     return Celery(main, broker="memory://", backend="cache+memory://", set_as_current=set_as_current)
-
-
-@pytest.fixture(autouse=True)
-def _restore_current_app() -> typing.Iterator[None]:
-    previous = current_app._get_current_object()  # noqa: SLF001
-    yield
-    previous.set_current()
 
 
 def test_a_configured_app_survives_a_pickle_round_trip() -> None:
