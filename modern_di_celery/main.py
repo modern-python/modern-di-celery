@@ -17,44 +17,63 @@ def _real_app(app: Celery) -> Celery:
     return app
 
 
+def _current_app() -> Celery:
+    return _real_app(typing.cast(Celery, current_app))
+
+
+def _worker_app(sender: object) -> Celery:
+    app = getattr(sender, "app", None)
+    return _current_app() if app is None else _real_app(app)
+
+
+def _bind_current_app(main: str | None, container: Container) -> Celery:
+    process_app = _current_app()
+    if process_app.main == main:
+        _ROOT_CONTAINERS.setdefault(process_app, container)
+    return process_app
+
+
 def setup_di(app: Celery, container: Container) -> Container:
     _ROOT_CONTAINERS[app] = container
     main = app.main
 
-    def _open_container(**_: typing.Any) -> None:  # noqa: ANN401
-        container.open()
+    def _owns(owner: Celery) -> bool:
+        return _ROOT_CONTAINERS.get(owner) is container
 
-    def _open_and_bind_container(**_: typing.Any) -> None:  # noqa: ANN401
-        container.open()
-        process_app = _real_app(typing.cast(Celery, current_app))
-        if process_app.main == main:
-            _ROOT_CONTAINERS.setdefault(process_app, container)
+    def _open_for_worker(sender: object = None, **_: typing.Any) -> None:  # noqa: ANN401
+        if _owns(_worker_app(sender)):
+            container.open()
 
-    def _close_container(**_: typing.Any) -> None:  # noqa: ANN401
-        container.close_sync()
+    def _close_for_worker(sender: object = None, **_: typing.Any) -> None:  # noqa: ANN401
+        if _owns(_worker_app(sender)):
+            container.close_sync()
+
+    def _open_for_process(**_: typing.Any) -> None:  # noqa: ANN401
+        if _owns(_bind_current_app(main, container)):
+            container.open()
+
+    def _close_for_process(**_: typing.Any) -> None:  # noqa: ANN401
+        if _owns(_current_app()):
+            container.close_sync()
 
     # weak=False is required: Celery signals default to weak refs, which would
     # garbage-collect these handlers before a worker process ever fires them.
     #
     # worker_process_init/worker_process_shutdown fire only under the prefork and
-    # solo pools (once per forked child for prefork), giving each forked process
-    # its own open/close so cached resources and finalizers are fork-safe.
-    # worker_init/worker_shutdown fire once in the main worker process for ALL
-    # pools, which is the only signal the gevent/eventlet/threads pools send —
-    # those pools never fork and never emit worker_process_init, so without this
-    # the root container would stay closed and every @inject task would raise
-    # ContainerClosedError. The overlap between the two pairs is harmless:
-    # Container.open() is a no-op when already open, and close_sync() is a no-op
+    # solo pools; worker_init/worker_shutdown fire once in the main worker process
+    # for all pools, and are the only pair gevent/eventlet/threads send. The
+    # overlap is harmless: open() is a no-op on an open container, close_sync()
     # when nothing was cached.
     #
-    # A spawn child unpickles the app it is sent and makes that copy current, then
-    # re-imports the task modules, so setup_di runs again on a new app object. The
-    # process-init handler binds its container to that current copy by main name,
-    # unless the copy already has one.
-    signals.worker_process_init.connect(_open_and_bind_container, weak=False)
-    signals.worker_process_shutdown.connect(_close_container, weak=False)
-    signals.worker_init.connect(_open_container, weak=False)
-    signals.worker_shutdown.connect(_close_container, weak=False)
+    # Each handler acts only when its app owns this container: the worker's app
+    # for the worker pair, the process's current app for the process pair. A
+    # spawn child makes an unpickled copy of the app current and re-runs
+    # setup_di on a new app object, so the process-init handler first binds its
+    # container to that copy by main name, unless the copy already has one.
+    signals.worker_process_init.connect(_open_for_process, weak=False)
+    signals.worker_process_shutdown.connect(_close_for_process, weak=False)
+    signals.worker_init.connect(_open_for_worker, weak=False)
+    signals.worker_shutdown.connect(_close_for_worker, weak=False)
     return container
 
 
