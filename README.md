@@ -108,9 +108,10 @@ Under the prefork pool each forked child inherits the open container. With `mana
 | `DITask` | `Task` subclass that applies `@inject` to a task's `run` automatically; pass `task_cls=DITask` to `Celery(...)` or `base=DITask` to `@app.task(...)` |
 | `fetch_di_container(app)` | Returns the root container (`Scope.APP`) registered with the Celery app. Raises `RuntimeError` naming `setup_di` when called on an app without `setup_di` called |
 
-## 📦 [PyPI](https://pypi.org/project/modern-di-celery)
+## Links
 
-## 📝 [License](https://github.com/modern-python/modern-di-celery/blob/main/LICENSE)
+- [PyPI](https://pypi.org/project/modern-di-celery)
+- [License](https://github.com/modern-python/modern-di-celery/blob/main/LICENSE)
 
 ## Part of `modern-python`
 
