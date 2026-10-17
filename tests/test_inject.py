@@ -5,7 +5,7 @@ import pytest
 from celery import Celery
 from modern_di import Container, Group, Scope, providers
 
-from modern_di_celery import FromDI, inject, setup_di
+from modern_di_celery import DITask, FromDI, inject, setup_di
 from tests.dependencies import Dependencies, DependentCreator, SimpleCreator
 
 
@@ -138,3 +138,38 @@ def test_inject_without_setup_di_raises_a_clear_runtime_error() -> None:
 
     with pytest.raises(RuntimeError, match=r"setup_di\(app, container\)"):
         sample.delay().get()
+
+
+@pytest.mark.parametrize("wiring", ["inject", "DITask"])
+def test_a_task_resolves_from_its_own_app_when_another_app_is_current(wiring: str) -> None:
+    class Names(Group):
+        name = providers.Factory(creator=SimpleCreator, kwargs={"dep1": "unset"})
+
+    def make_app(main: str) -> Celery:
+        app_ = Celery(main)
+        app_.conf.task_always_eager = True
+        container = Container(groups=[Names])
+        container.override(Names.name, SimpleCreator(dep1=main))
+        setup_di(app_, container)
+        return app_
+
+    owner = make_app("owner")
+    make_app("other").set_current()
+
+    def read_name(name: typing.Annotated[SimpleCreator, FromDI(Names.name)]) -> str:
+        return name.dep1
+
+    task = owner.task(inject(read_name)) if wiring == "inject" else owner.task(base=DITask)(read_name)
+
+    assert task.delay().get() == "owner"
+    assert task() == "owner"
+
+
+def test_inject_outside_a_task_resolves_from_the_current_app(app: Celery) -> None:
+    @inject
+    def read_dep1(instance: typing.Annotated[SimpleCreator, FromDI(SimpleCreator)]) -> str:
+        return instance.dep1
+
+    app.set_current()
+
+    assert read_dep1() == "original"

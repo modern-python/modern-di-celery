@@ -2,7 +2,7 @@ import inspect
 import typing
 import weakref
 
-from celery import Celery, Task, current_app, signals
+from celery import Celery, Task, current_app, current_task, signals
 from celery.local import Proxy
 from celery.utils.dispatch import Signal
 from celery.utils.functional import head_from_fun
@@ -20,6 +20,11 @@ def _real_app(app: Celery) -> Celery:
 
 def _current_app() -> Celery:
     return _real_app(typing.cast(Celery, current_app))
+
+
+def _task_app() -> Celery:
+    task = current_task._get_current_object()  # noqa: SLF001
+    return _current_app() if task is None else _real_app(task.app)
 
 
 def _worker_app(sender: object) -> Celery:
@@ -125,9 +130,7 @@ def inject(func: typing.Callable[..., T]) -> typing.Callable[..., T]:
     visible_signature = signature.replace(parameters=visible_params)
 
     def wrapper(*args: typing.Any, **kwargs: typing.Any) -> T:  # noqa: ANN401
-        with fetch_di_container(typing.cast(Celery, current_app)).build_child_container(
-            scope=Scope.REQUEST
-        ) as container:
+        with fetch_di_container(_task_app()).build_child_container(scope=Scope.REQUEST) as container:
             resolved = integrations.resolve_markers(container, di_params)
             bound = visible_signature.bind(*args, **kwargs)
             bound.apply_defaults()
