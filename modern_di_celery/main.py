@@ -4,6 +4,7 @@ import weakref
 
 from celery import Celery, Task, current_app, signals
 from celery.local import Proxy
+from celery.utils.dispatch import Signal
 from celery.utils.functional import head_from_fun
 from modern_di import Container, Scope, integrations
 
@@ -33,6 +34,11 @@ def _bind_current_app(main: str | None, container: Container) -> Celery:
     return process_app
 
 
+def _move_to_end(signal: Signal, receiver: typing.Callable[..., None]) -> None:
+    signal.disconnect(receiver)
+    signal.connect(receiver, weak=False)
+
+
 def setup_di(app: Celery, container: Container, *, manage_lifespan: bool = True) -> Container:
     _ROOT_CONTAINERS[app] = container
     main = app.main
@@ -50,12 +56,14 @@ def setup_di(app: Celery, container: Container, *, manage_lifespan: bool = True)
 
     def _open_for_worker(sender: object = None, **_: typing.Any) -> None:  # noqa: ANN401
         _open_for(_worker_app(sender))
+        _move_to_end(signals.worker_shutdown, _close_for_worker)
 
     def _close_for_worker(sender: object = None, **_: typing.Any) -> None:  # noqa: ANN401
         _close_for(_worker_app(sender))
 
     def _open_for_process(**_: typing.Any) -> None:  # noqa: ANN401
         _open_for(_bind_current_app(main, container))
+        _move_to_end(signals.worker_process_shutdown, _close_for_process)
 
     def _close_for_process(**_: typing.Any) -> None:  # noqa: ANN401
         _close_for(_current_app())
