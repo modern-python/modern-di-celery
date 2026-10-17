@@ -31,7 +31,7 @@ uv add modern-di-celery      # or: pip install modern-di-celery
 
 ## Usage
 
-`setup_di` registers the container for the app and connects handlers that open and close it on `worker_process_init`/`worker_process_shutdown` (once per forked process under the prefork and solo pools) and on `worker_init`/`worker_shutdown` (once in the main worker process, the only signals the threads, gevent, and eventlet pools send). `@inject` builds a `Scope.REQUEST` child container per task call and resolves the `FromDI`-marked parameters from it; alternatively set `task_cls=DITask` to inject every task without a per-task decorator.
+`setup_di` registers the container for the app and connects handlers that open and close it on `worker_process_init`/`worker_process_shutdown` (once per forked process under the prefork and solo pools) and on `worker_init`/`worker_shutdown` (once in the main worker process, the only signals the threads, gevent, and eventlet pools send). The close runs after every other receiver of the shutdown signal, including ones connected after `setup_di`, so your shutdown code can still resolve `Scope.APP` dependencies and their finalizers run last. `@inject` builds a `Scope.REQUEST` child container per task call and resolves the `FromDI`-marked parameters from it; alternatively set `task_cls=DITask` to inject every task without a per-task decorator.
 
 ```python
 import typing
