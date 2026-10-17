@@ -31,7 +31,7 @@ uv add modern-di-celery      # or: pip install modern-di-celery
 
 ## Usage
 
-`setup_di` stores the container on `app.conf` and registers handlers that open and close it on `worker_process_init`/`worker_process_shutdown` (once per forked process under the prefork and solo pools) and on `worker_init`/`worker_shutdown` (once in the main worker process, the only signals the threads, gevent, and eventlet pools send). `@inject` builds a `Scope.REQUEST` child container per task call and resolves the `FromDI`-marked parameters from it; alternatively set `task_cls=DITask` to inject every task without a per-task decorator.
+`setup_di` registers the container for the app and connects handlers that open and close it on `worker_process_init`/`worker_process_shutdown` (once per forked process under the prefork and solo pools) and on `worker_init`/`worker_shutdown` (once in the main worker process, the only signals the threads, gevent, and eventlet pools send). `@inject` builds a `Scope.REQUEST` child container per task call and resolves the `FromDI`-marked parameters from it; alternatively set `task_cls=DITask` to inject every task without a per-task decorator.
 
 ```python
 import typing
@@ -76,11 +76,15 @@ def greet(
 
 These worker signals fire only when a real `celery worker` starts and stops, so a script or test that runs tasks eagerly (`task_always_eager = True`) must drive the container lifecycle itself, either by sending those signals or by opening and closing the container directly. Celery tasks are sync, so REQUEST-scoped finalizers run via `close_sync()`; there is no framework request/message object, so no context provider is registered.
 
+### Prefork with spawn
+
+Celery runs its prefork pool on billiard, its own copy of multiprocessing, which starts children with the fork method by default on macOS and Linux. With spawn (Windows, or `billiard.set_start_method("spawn", force=True)`), each child unpickles the app and re-imports your task modules, so `setup_di` runs again in the child. The `worker_process_init` handler then registers the child's container for the app the child runs. It matches apps by `main` name, so give each app in a process its own name. Under spawn, Celery's prefork pool also needs `FORKED_BY_MULTIPROCESSING=1` in the environment. Without it tasks fail inside Celery's tracer, with or without modern-di.
+
 ## API
 
 | Symbol | Description |
 |---|---|
-| `setup_di(app, container)` | Stores the root container (`Scope.APP`) on `app.conf` and opens/closes it on `worker_process_init`/`worker_process_shutdown` and `worker_init`/`worker_shutdown`. Returns the container |
+| `setup_di(app, container)` | Registers the root container (`Scope.APP`) for the app, outside `app.conf`, and opens/closes it on `worker_process_init`/`worker_process_shutdown` and `worker_init`/`worker_shutdown`. Returns the container |
 | `FromDI(dependency)` | Inert marker for `Annotated[T, FromDI(...)]` in task signatures; accepts a provider instance or a type |
 | `inject(task)` | Decorator that builds a `Scope.REQUEST` child per call, resolves the `FromDI`-annotated parameters, and closes the child with `close_sync()` afterwards. Raises `TypeError` at decoration if the task also declares `*args`/`**kwargs`. Raises `RuntimeError` naming `setup_di` when a task reaches it without `setup_di` called |
 | `DITask` | `Task` subclass that applies `@inject` to a task's `run` automatically; pass `task_cls=DITask` to `Celery(...)` or `base=DITask` to `@app.task(...)` |
