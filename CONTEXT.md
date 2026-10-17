@@ -17,7 +17,8 @@ one. Celery's vocabulary is Celery's — task, worker, broker, beat, and the poo
 
 **Root container**:
 The `Scope.APP` `Container` handed to `setup_di` and registered for the Celery app, outside its
-`conf`; the worker lifecycle signals open and close it, and every per-task child descends from it.
+`conf`; the worker lifecycle signals open and close it unless `setup_di` gets `manage_lifespan=False`,
+which leaves that to the user, and every per-task child descends from it.
 `fetch_di_container` returns this one.
 _Avoid_: APP container, APP-scope container — both have been used for it, and neither says the thing
 that matters at a call site, which is that this is the container a per-task child is built *from*.

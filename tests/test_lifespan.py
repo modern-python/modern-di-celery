@@ -1,7 +1,8 @@
+import asyncio
 import typing
 
 from celery import Celery, signals
-from modern_di import Container
+from modern_di import Container, Group, Scope, providers
 
 import modern_di_celery
 from modern_di_celery import FromDI, fetch_di_container, inject
@@ -103,3 +104,91 @@ def test_process_signals_act_only_on_the_current_app() -> None:
     container_b.close_sync()
     signals.worker_process_init.send(sender=None)
     assert (container_a.closed, container_b.closed) == (False, True)
+
+
+class _AppResource:
+    pass
+
+
+class _TaskResource:
+    pass
+
+
+def _tracked_container(finalized: list[str]) -> Container:
+    class Tracked(Group):
+        app_resource = providers.Factory(
+            _AppResource,
+            scope=Scope.APP,
+            cache=providers.CacheSettings(finalizer=lambda _: finalized.append("app")),
+        )
+        task_resource = providers.Factory(
+            _TaskResource,
+            scope=Scope.REQUEST,
+            cache=providers.CacheSettings(finalizer=lambda _: finalized.append("task")),
+        )
+
+    return Container(groups=[Tracked])
+
+
+def _unmanaged_app(main: str, container: Container) -> Celery:
+    app = Celery(main, broker="memory://", backend="cache+memory://")
+    app.conf.task_always_eager = True
+    app.conf.task_store_eager_result = True
+    modern_di_celery.setup_di(app, container, manage_lifespan=False)
+
+    @app.task(name="uses_both_scopes")
+    @inject
+    def uses_both_scopes(
+        app_resource: typing.Annotated[_AppResource, FromDI(_AppResource)],
+        task_resource: typing.Annotated[_TaskResource, FromDI(_TaskResource)],
+    ) -> bool:
+        return isinstance(app_resource, _AppResource) and isinstance(task_resource, _TaskResource)
+
+    return app
+
+
+def _run_worker_lifecycle(app: Celery) -> bool:
+    worker = _FakeWorker(app)
+    signals.worker_init.send(sender=worker)
+    signals.worker_process_init.send(sender=None)
+    result = app.tasks["uses_both_scopes"].delay().get()
+    signals.worker_process_shutdown.send(sender=None)
+    signals.worker_shutdown.send(sender=worker)
+    return result
+
+
+def test_manage_lifespan_false_leaves_the_root_open_and_unfinalized() -> None:
+    finalized: list[str] = []
+    container = _tracked_container(finalized)
+    app = _unmanaged_app("unmanaged-lifecycle", container)
+
+    assert _run_worker_lifecycle(app) is True
+    assert container.closed is False
+    assert finalized == ["task"]
+
+
+def test_manage_lifespan_false_never_opens_the_root() -> None:
+    container = _tracked_container([])
+    app = _unmanaged_app("unmanaged-closed", container)
+    container.close_sync()
+
+    signals.worker_init.send(sender=_FakeWorker(app))
+    signals.worker_process_init.send(sender=None)
+
+    assert container.closed is True
+
+
+def test_manage_lifespan_false_lets_the_user_own_the_root() -> None:
+    finalized: list[str] = []
+    container = _tracked_container(finalized)
+    app = _unmanaged_app("unmanaged-owned", container)
+
+    async def run() -> bool:
+        async with container:
+            result = _run_worker_lifecycle(app)
+            assert finalized == ["task"]
+        return result
+
+    assert asyncio.run(run()) is True
+    assert container.closed is True
+    assert finalized == ["task", "app"]

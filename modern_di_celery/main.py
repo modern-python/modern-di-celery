@@ -33,28 +33,32 @@ def _bind_current_app(main: str | None, container: Container) -> Celery:
     return process_app
 
 
-def setup_di(app: Celery, container: Container) -> Container:
+def setup_di(app: Celery, container: Container, *, manage_lifespan: bool = True) -> Container:
     _ROOT_CONTAINERS[app] = container
     main = app.main
 
     def _owns(owner: Celery) -> bool:
         return _ROOT_CONTAINERS.get(owner) is container
 
-    def _open_for_worker(sender: object = None, **_: typing.Any) -> None:  # noqa: ANN401
-        if _owns(_worker_app(sender)):
+    def _open_for(owner: Celery) -> None:
+        if manage_lifespan and _owns(owner):
             container.open()
+
+    def _close_for(owner: Celery) -> None:
+        if manage_lifespan and _owns(owner):
+            container.close_sync()
+
+    def _open_for_worker(sender: object = None, **_: typing.Any) -> None:  # noqa: ANN401
+        _open_for(_worker_app(sender))
 
     def _close_for_worker(sender: object = None, **_: typing.Any) -> None:  # noqa: ANN401
-        if _owns(_worker_app(sender)):
-            container.close_sync()
+        _close_for(_worker_app(sender))
 
     def _open_for_process(**_: typing.Any) -> None:  # noqa: ANN401
-        if _owns(_bind_current_app(main, container)):
-            container.open()
+        _open_for(_bind_current_app(main, container))
 
     def _close_for_process(**_: typing.Any) -> None:  # noqa: ANN401
-        if _owns(_current_app()):
-            container.close_sync()
+        _close_for(_current_app())
 
     # weak=False is required: Celery signals default to weak refs, which would
     # garbage-collect these handlers before a worker process ever fires them.
