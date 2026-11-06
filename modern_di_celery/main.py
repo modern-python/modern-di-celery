@@ -151,5 +151,5 @@ class DITask(Task):
         super().__init__()
         if not integrations.is_injected(self.run):
             injected = inject(self.run)
-            self.run = injected  # ty: ignore[invalid-assignment]
+            self.run = injected
             self.__header__ = head_from_fun(injected)
