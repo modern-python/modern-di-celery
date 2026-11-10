@@ -137,11 +137,11 @@ def inject(func: typing.Callable[..., T]) -> typing.Callable[..., T]:
             return func(**bound.arguments, **resolved)
 
     # NOT functools.wraps — keep Celery's arg-binding reading the visible signature.
-    wrapper.__name__ = func.__name__  # ty: ignore[unresolved-attribute]
-    wrapper.__qualname__ = func.__qualname__  # ty: ignore[unresolved-attribute]
+    wrapper.__name__ = func.__name__  # ty: ignore[missing-attribute]
+    wrapper.__qualname__ = func.__qualname__  # ty: ignore[missing-attribute]
     wrapper.__doc__ = func.__doc__
     wrapper.__module__ = func.__module__
-    wrapper.__signature__ = visible_signature  # ty: ignore[unresolved-attribute]
+    wrapper.__signature__ = visible_signature  # ty: ignore[missing-attribute]
     integrations.mark_injected(wrapper)
     return wrapper
 
