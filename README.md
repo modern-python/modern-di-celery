@@ -113,6 +113,8 @@ Under the prefork pool each forked child inherits the open container. With `mana
 - [PyPI](https://pypi.org/project/modern-di-celery)
 - [License](https://github.com/modern-python/modern-di-celery/blob/main/LICENSE)
 
+If this project saves you time, consider giving it a star on GitHub.
+
 ## Part of `modern-python`
 
 Built on [`modern-di`](https://github.com/modern-python/modern-di), a dependency-injection framework with an IoC container and scopes.
